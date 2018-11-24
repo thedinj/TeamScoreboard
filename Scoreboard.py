@@ -3,44 +3,96 @@ import subprocess
 import os
 from ScoreRetriever import Score
 from PIL import Image, ImageFont, ImageDraw
+import shlex
 
-ROWS = 16
-COLS = 64
-PADDING = 30
 SCORE_FILE_NAME = "score.ppm"  #! used to have path: /home/pi/TeamScoreboard/
 TEMPLATE_FILE_NAME = "scoreboard_bg.ppm"  #! this too: /home/pi/TeamScoreboard/
 
 class Scoreboard(object):
     __fonts = {}
+    __rows = 0
+    __cols = 0
+    __padding = 0
 
-    def DisplayScore(self, score: Score, seconds: int, isBackground: bool=False):
-        print("Displaying score: {} ({}s)".format(score, seconds))
-        return self.__displayImage(scroll, isBackground)
+    def __init__(self, rows, cols, padding):
+        self.__rows = rows
+        self.__cols = cols
+        self.__padding = padding
 
-    def DisplayFinalScore(self, score: Score, seconds: int, isBackground: bool=False):
-        print("Scrolling final score banner: {} ({}s)".format(score, seconds))
-        return self.__displayImage(scroll, isBackground)
+    def DrawScore(self, score: Score):
+        print("Drawing score: {}".format(score))
 
-    def DisplayMessage(self, message: str, seconds: int, scroll: bool=False, isBackground: bool=False):
-        print("{} message: {} ({}s)".format("Scrolling" if scroll else "Displaying", message, seconds))
-        font = self.__getFontByName("FreeSans", ROWS)
+        font = self.__getFontByName("FreeSansBold", 9)
+
+        awayTeam = score.AwayTeamAbbr
+        homeTeam = score.HomeTeamAbbr
+    
+        timer = score.TimeRemaining
+        if len(timer) < 1:
+            timer = "0:00"
+        
+        if score.IsFinal:
+            period = "(F)"
+            timer = ""
+        else:
+            period = score.Period
+    
+        scoreXOffset = 25
+    
+        awayScoreColor = Scoreboard.ColorScore()
+        homeScoreColor = Scoreboard.ColorScore()
+        if score.AwayScore > score.HomeScore:
+            awayScoreColor = Scoreboard.ColorWinningScore()
+        elif score.AwayScore < score.HomeScore:
+            homeScoreColor = Scoreboard.ColorWinningScore()
+    
+        scoreTextData = []
+        scoreTextData += [[awayTeam + ":", Scoreboard.ColorByTeam(awayTeam), font, [0, 0], "L"]]
+        scoreTextData += [[str(score.AwayScore), awayScoreColor, font, [scoreXOffset, 0], "L"]]
+        scoreTextData += [[homeTeam + ":", Scoreboard.ColorByTeam(homeTeam), font, [0, self.__rows/2], "L"]]
+        scoreTextData += [[str(score.HomeScore), homeScoreColor, font, [scoreXOffset, self.__rows/2], "L"]]
+        scoreTextData += [[period, Scoreboard.ColorScore(), font, [self.__cols, 0], "R"]]
+        scoreTextData += [[timer, Scoreboard.ColorScore(), font, [self.__cols, self.__rows/2], "R"]]
+    
+        self.__writeTextToImage(scoreTextData, None, self.__getTemplateFilename())
+
+    def DrawFinalScore(self, score: Score):
+        print("Drawing final score banner: {}".format(score))
+
+        font = self.__getFontByName("FreeSansBold", self.__rows)
+    
+        scoreText = score.FinalMessage
+        color = score.FinalMessageColor
+    
+        scoreText += " ({}-{})".format(score.TeamScore, score.OtherScore)
+    
+        scoreTextData = []
+        scoreTextData += [[scoreText, color, font, [self.__padding/2, 0], "L"]]
+    
+        width, ignore = font.getsize(scoreText)
+    
+        self.__writeTextToImage(scoreTextData, (width + self.__padding, self.__rows))
+
+    def DrawMessage(self, message: str):
+        print("Drawing message: {}".format(message))
+        font = self.__getFontByName("FreeSans", self.__rows)
         color = (0, 255, 0)
         textData = []
-        textData += [[message, color, font, [PADDING/2, 0], "L"]]
+        textData += [[message, color, font, [self.__padding/2, 0], "L"]]
         width, ignore = font.getsize(message)
-        self.__writeScoreboardImages(textData, (width + PADDING, ROWS))
-        return self.__displayImage(scroll, isBackground)
+        self.__writeTextToImage(textData, (width + self.__padding, self.__rows))
 
-    def __displayImage(self, seconds: int, scroll: bool=False, isBackground: bool=False):
+    def DisplayImage(self, seconds: int, scroll: bool=False, isBackground: bool=False):
+        print("{} image ({}s)".format("Scrolling" if scroll else "Displaying", seconds))
         if os.name == "nt":  # windows -- simulate
             cmd = "python ./ProcessSimulator.py {}".format(seconds)
         else:
             if scroll:
                 command = "sudo /home/pi/rpi-rgb-led-matrix/examples-api-use/demo"
-                args = " --led-rows {} --led-cols {} --led-slowdown-gpio 2 -t {} -D 1 {} >/dev/null 2>&1".format(ROWS, COLS, displayTime, SCORE_FILE_NAME)
+                args = " --led-rows {} --led-cols {} --led-slowdown-gpio 2 -t {} -D 1 {} >/dev/null 2>&1".format(self.__rows, self.__cols, seconds, self.__getScoreFilename())
             else:
                 command = "sudo /home/pi/rpi-rgb-led-matrix/utils/led-image-viewer"
-                args = " -w {} -l 1 {} --led-rows {} --led-cols {} --led-slowdown-gpio 2 >/dev/null 2>&1".format(displayTime, SCORE_FILE_NAME, ROWS, COLS)
+                args = " -w {} -l 1 {} --led-rows {} --led-cols {} --led-slowdown-gpio 2 >/dev/null 2>&1".format(seconds, self.__getScoreFilename(), self.__rows, self.__cols)
             cmd = shlex.split(command + args)
         return self.__runCommand(cmd, isBackground)
 
@@ -51,12 +103,12 @@ class Scoreboard(object):
         proc.wait() 
         return None
 
-    def __writeScoreboardImages(self, textData, xy = None, templateFile = None):
+    def __writeTextToImage(self, textData, xy = None, templateFile = None):
         if templateFile != None:
             im = Image.open(templateFile)
         else:
             if xy == None:
-                xy = (COLS, ROWS)
+                xy = (self.__cols, self.__rows)
             im = Image.new("RGB", xy, "black")
         draw = ImageDraw.Draw(im)
     
@@ -72,7 +124,7 @@ class Scoreboard(object):
                  pos[0] -= width
             pos[1] -= 1  # nothing goes above the line
             draw.text(pos, scoreText, color, font=font)
-        im.save(SCORE_FILE_NAME)
+        im.save(self.__getScoreFilename())
 
     def __getFontByName(self, fontName, fontSize):
         if (fontName, fontSize) in self.__fonts:
@@ -84,6 +136,15 @@ class Scoreboard(object):
         font = ImageFont.truetype(fontPath, fontSize)
         self.__fonts[(fontName, fontSize)] = font
         return font
+
+    def __getDirectory(self):
+        return os.path.dirname(os.path.abspath(__file__))
+
+    def __getScoreFilename(self):
+        return self.__getDirectory() + "/" + SCORE_FILE_NAME
+
+    def __getTemplateFilename(self):
+        return self.__getDirectory() + "/" + TEMPLATE_FILE_NAME
 
     #https://teamcolorcodes.com/milwaukee-bucks-color-codes/
     @staticmethod

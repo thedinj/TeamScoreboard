@@ -3,6 +3,7 @@ from urllib3 import PoolManager, HTTPResponse
 from bs4 import BeautifulSoup, Tag
 from datetime import date, datetime, timedelta
 import re
+import time
 
 SCORE_URL = "http://www.usatoday.com/sports/nba/scores/{}/{}/{}/"
 
@@ -22,6 +23,8 @@ class Score(object):
 
     TeamScore: int = 0
     OtherScore: int = 0
+    FinalMessage: str = ""
+    FinalMessageColor: tuple = (0, 0, 0)
 
     def __str__(self):
         awayScoreStr: str = "{}: {}".format(self.AwayTeamAbbr, self.AwayScore)
@@ -50,7 +53,7 @@ class ScoreRetriever(object):
         urllib3.disable_warnings()  # turn off InsecureRequestWarning
         self.__http = PoolManager()
 
-    def GetScoreForTeam(self, teamAbbr: str, dateToUse: date, timeZoneDelta: int) -> ScoreResult:
+    def GetScoreForTeam(self, teamAbbr: str, teamNick: str, dateToUse: date, timeZoneDelta: int) -> ScoreResult:
         try:
             result: ScoreResult = ScoreResult()
 
@@ -61,7 +64,7 @@ class ScoreRetriever(object):
             result.RequestSucceeded = True
             result.Response = response
 
-            soup: BeautifulSoup = BeautifulSoup(response.data, features="lxml")
+            soup: BeautifulSoup = BeautifulSoup(response.data, features="html.parser")
 
             gameElements: list = self.__getGameElements(soup)
             if gameElements == None:
@@ -78,7 +81,7 @@ class ScoreRetriever(object):
                     teamA = gameElement.select(".teamname")[0].string.strip()
                     teamB = gameElement.select(".teamname")[1].string.strip()
                     if teamA == teamAbbr or teamB == teamAbbr:
-                        result.TheScore = self.__parseGame(gameElement, teamAbbr, dateToUse, timeZoneDelta)
+                        result.TheScore = self.__parseGame(gameElement, teamAbbr, teamNick, dateToUse, timeZoneDelta)
                         break
         
         except Exception as e:
@@ -103,7 +106,7 @@ class ScoreRetriever(object):
             return None
         return gameElements
 
-    def __parseGame(self, gameElement: Tag, teamAbbr: str, dateToUse: date, timeZoneDelta: int) -> Score:
+    def __parseGame(self, gameElement: Tag, teamAbbr: str, teamNick: str, dateToUse: date, timeZoneDelta: int) -> Score:
         score: Score = Score()
 
         try:
@@ -142,6 +145,8 @@ class ScoreRetriever(object):
         try:
             periodElement: Tag = startTimeElement.find_previous("li")
             score.Period = periodElement.string.strip()
+            if score.period.isdigit():
+                score.period = "Q" + score.period
         except:
             pass
     
@@ -150,6 +155,7 @@ class ScoreRetriever(object):
             timerRaw = timerElement.string.strip()
             if timerRaw == "Final" or timerRaw == "Final OT":
                 score.IsFinal = True
+                ScoreRetriever.SetFinalMessage(score, teamNick)
             elif timerRaw == "Halftime":
                 score.TimeRemaining = "0:00"
             else:
@@ -161,3 +167,83 @@ class ScoreRetriever(object):
             pass
 
         return score
+    
+    @staticmethod
+    def SetFinalMessage(score, teamNick):
+        if not score.IsFinal:
+            return None
+
+        if score.TeamScore > score.OtherScore:
+            scoreText = teamNick.upper() + " WIN!" #!!!!!
+            color = (0, 255, 0)
+        else:
+            scoreText = teamNick + " lose"
+            color = (255, 0, 0)
+
+        score.FinalMessage = scoreText
+        score.FinalMessageColor = color
+
+    __simulationStep: int = -1
+
+    def GetSimulatedScoreForTeam(self, teamAbbr: str, teamNick: str, dateToUse: date, timeZoneDelta: int) -> ScoreResult:
+        time.sleep(2) #simulate lag
+
+        self.__simulationStep = self.__simulationStep + 1
+
+        result = ScoreResult()        
+        if self.__simulationStep < 1:
+            return result
+
+        result.RequestSucceeded = True
+        if self.__simulationStep < 2:
+            return result
+
+        result.ResponseValid = True        
+        if self.__simulationStep < 3:
+            return result
+
+        result.AnyGamesFound = True
+        result.TheScore = Score()
+        result.TheScore.StartTime = datetime.now() + timedelta(seconds = 4)
+        if self.__simulationStep < 4:
+            return result
+
+        result.TheScore.StartTime = datetime.now() + timedelta(seconds = -1)
+        result.TheScore.AwayTeamAbbr = "CHI"
+        result.TheScore.HomeTeamAbbr = "MIL"
+        if self.__simulationStep < 5:
+            return result
+
+        result.TheScore.StartTime = None
+
+        result.TheScore.AwayScore = 0
+        result.TheScore.HomeScore = 0
+        result.TheScore.OtherScore = result.TheScore.AwayScore
+        result.TheScore.TeamScore = result.TheScore.HomeScore
+        result.TheScore.Period = "Q1"
+        result.TheScore.TimeRemaining = "12:00"
+        if self.__simulationStep < 6:
+            return result
+
+        result.TheScore.AwayScore = 86
+        result.TheScore.HomeScore = 99
+        result.TheScore.OtherScore = result.TheScore.AwayScore
+        result.TheScore.TeamScore = result.TheScore.HomeScore
+        result.TheScore.Period = "Q4"
+        result.TheScore.TimeRemaining = "9:13"
+        if self.__simulationStep < 7:
+            return result
+        
+        if self.__simulationStep < 8:
+            return ScoreResult()  # request failed entirely
+
+        result.TheScore.AwayScore = 100
+        result.TheScore.HomeScore = 140
+        result.TheScore.OtherScore = result.TheScore.AwayScore
+        result.TheScore.TeamScore = result.TheScore.HomeScore
+        result.TheScore.Period = "Q4"
+        result.TheScore.TimeRemaining = "0:00"
+        result.TheScore.IsFinal = True
+        ScoreRetriever.SetFinalMessage(result.TheScore, teamNick)
+        
+        return result
