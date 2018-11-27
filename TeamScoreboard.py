@@ -3,6 +3,7 @@ import os
 import sys
 import subprocess
 import time
+from USAToday import USATodayScoreRetriever
 from ScoreRetriever import ScoreRetriever, ScoreResult, Score
 from Scoreboard import Scoreboard
 from datetime import datetime, date, timedelta
@@ -64,7 +65,7 @@ class TeamScoreboard(object):
         self.__teamAbbr = teamAbbr
         self.__teamNick = teamNick
         self.__timeZoneDelta = timeZoneDelta
-        self.__scoreRetriever = ScoreRetriever()
+        self.__scoreRetriever = USATodayScoreRetriever()
         self.__scoreboard = Scoreboard(ROWS, COLS, PADDING)
 
     def RunDisplayScoreLoop(self):
@@ -133,7 +134,7 @@ class TeamScoreboard(object):
                 print("Game doesn't start until {}.".format(score.StartTime.strftime("%x %X")))
                 return DrawResult(sleepSeconds = secondsUntilStart + 1)
 
-        if score.IsFinal:
+        if score.GetIsFinal():
             if not self.__finalFlag:
                 self.__finalFlag = True
                 self.__finalTimestamp = datetime.now()

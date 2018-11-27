@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>fe0bd7ab-3d2f-4182-bd75-64614168c400</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>TeamScoreboard.py</StartupFile>
+    <StartupFile>ESPN.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -31,10 +31,16 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="TeamScoreboard.py" />
+    <Compile Include="USAToday.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="Version 1.0\ScoreGetter.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Version 1.0\TeamScoreboard.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="ESPN.py">
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>

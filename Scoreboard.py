@@ -31,7 +31,7 @@ class Scoreboard(object):
         if len(timer) < 1:
             timer = "0:00"
         
-        if score.IsFinal:
+        if score.GetIsFinal():
             period = "(F)"
             timer = ""
         else:
