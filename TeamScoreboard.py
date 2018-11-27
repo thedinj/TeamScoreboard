@@ -24,7 +24,7 @@ LED_REFRESH_TIME_SEC = 60
 FINAL_SCORE_TIME_SEC = 30       # seconds to scroll the win/loss message
 ERROR_SLEEP_SEC = 30
 SHOW_FINAL_SCORE_SEC = 30 * 60  # seconds to display the final score before shutting off
-MAX_EXPECTED_RESPONSE_SEC = 10
+MAX_EXPECTED_RESPONSE_SEC = 20
 MAX_SLEEP = 2 * 60 * 60
 
 if SHORT_TIMES:
@@ -36,6 +36,8 @@ if SHORT_TIMES:
 
 MAX_NO_GAMES_CHECKS = 5
 
+SAVING_RESPONSES = True
+MAX_SAVED_RESPONSES = 100
 
 class DrawResult(object):
     DrawSeconds: int = 0
@@ -73,9 +75,18 @@ class TeamScoreboard(object):
 
         while True:
             print("Main loop running at {}.".format(datetime.now().strftime("%x %X")))
-            result: ScoreResult = self.__getScoreResult()
             
+            result: ScoreResult = self.__getScoreResult()
+
+            if result.RequestSucceeded and SAVING_RESPONSES:
+                filename = self.__getNextResponseFilename()
+                print("Storing response as {}.".format(filename))
+                textFile = open(self.__getDirectory() + "/" + filename, "wb")
+                textFile.write(result.Response.data)
+                textFile.close()
+
             drawResult: DrawResult = self.__processResult(result)
+
             if drawResult.SleepSeconds > 0:
                 self.__sleep(drawResult.SleepSeconds)
                 continue
@@ -88,6 +99,7 @@ class TeamScoreboard(object):
             self.__sleep(drawResult.DrawSeconds - MAX_EXPECTED_RESPONSE_SEC)
     
     def __processResult(self, result: ScoreResult) -> DrawResult:
+        print("Processing result.")
         if result.IsException:
             print("Exception loading score: {}".format(result.ExceptionDescription))
             return DrawResult(sleepSeconds = ERROR_SLEEP_SEC)
@@ -142,6 +154,7 @@ class TeamScoreboard(object):
             return DrawResult(sleepSeconds = LED_REFRESH_TIME_SEC)
 
         self.__scoreboard.DrawScore(score)
+        print("Drawing score image.")
         return DrawResult(LED_REFRESH_TIME_SEC, False)
 
     def __getScoreResult(self):
@@ -152,11 +165,13 @@ class TeamScoreboard(object):
         else:
             dateToUse = SIMULATION_DATE
         if not SIMULATED_DATA:
+            print("Retrieving score from the web.")
             return self.__scoreRetriever.GetScoreForTeam(self.__teamAbbr, self.__teamNick, dateToUse, self.__timeZoneDelta)
         else:
+            print("Retrieving score from simulation data.")
             return self.__scoreRetriever.GetSimulatedScoreForTeam(self.__teamAbbr, self.__teamNick, dateToUse, self.__timeZoneDelta)
 
-    def __sleep(self, seconds):
+    def __sleep(self, seconds: int):
         if seconds < 1:
             return
         if seconds > MAX_SLEEP:
@@ -180,6 +195,14 @@ class TeamScoreboard(object):
         if timeUntilStart.days < 0:  # this is how you check for a negative timedelta
             return 0
         return timeUntilStart.seconds
+        
+    def __getDirectory(self):
+        return os.path.dirname(os.path.abspath(__file__))
+
+    __currentResponseIndex: int = -1
+    def __getNextResponseFilename(self):
+        self.__currentResponseIndex = (self.__currentResponseIndex + 1) % MAX_SAVED_RESPONSES
+        return "response_" + str(self.__currentResponseIndex+1) + ".html"
 
 
 def signal_handler(sig, frame):

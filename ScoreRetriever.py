@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup, Tag
 from datetime import date, datetime, timedelta
 import re
 import time
+import os
 
 SCORE_URL = "http://www.usatoday.com/sports/nba/scores/{}/{}/{}/"
 
@@ -145,8 +146,8 @@ class ScoreRetriever(object):
         try:
             periodElement: Tag = startTimeElement.find_previous("li")
             score.Period = periodElement.string.strip()
-            if score.period.isdigit():
-                score.period = "Q" + score.period
+            if score.Period.isdigit():
+                score.Period = "Q" + score.Period
         except:
             pass
     
