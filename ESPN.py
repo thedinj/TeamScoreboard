@@ -98,10 +98,14 @@ class ESPNScoreRetriever(ScoreRetriever):
                 score.TimeRemaining = "0:00"
             else:
                 # is it a game in progress?
-                regex = re.compile("\d?\d\:\d\d - \d.*")
-                matches = regex.findall(timerRaw)
-                if len(matches) > 0:
-                    [score.TimeRemaining, score.Period] = matches[0].split(" - ")
+                regex1 = re.compile("\d?\d\:\d\d - \d.*")  # e.g. 2:56 - 1st
+                matches1 = regex1.findall(timerRaw)
+                regex2 = re.compile("\d?\d\.\d - \d.*")    # e.g. 0.6 - 1st
+                matches2 = regex2.findall(timerRaw)
+                if len(matches1) > 0:
+                    [score.TimeRemaining, score.Period] = matches1[0].split(" - ")
+                elif len(matches2) > 0:
+                    [score.TimeRemaining, score.Period] = matches2[0].split(" - ")
                 else:
                     # let's see if it's a start time
                     startTime: struct_time = time.strptime(timerRaw.replace(" ET",""), "%I:%M %p")
