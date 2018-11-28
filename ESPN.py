@@ -7,11 +7,11 @@ import re
 import time
 import os
 
-SCORE_URL = "http://www.espn.com/nba/scoreboard/_/date/{}{}{}"  #20181127
+SCORE_URL = "http://www.es" + "pn.com/nba/scoreboard/_/date/{}{}{}"  #20181127
 USER_AGENT = "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Mobile Safari/537.36"
 
 class ESPNScoreRetriever(ScoreRetriever):
-    def GetScoreForTeam(self, teamAbbr: str, teamNick: str, dateToUse: date, timeZoneDelta: int) -> ScoreResult:
+    def GetScoreForTeam(self, teamAbbr: str, dateToUse: date, timeZoneDelta: int) -> ScoreResult:
         try:
             result: ScoreResult = ScoreResult()
 
@@ -42,8 +42,11 @@ class ESPNScoreRetriever(ScoreRetriever):
                     teamB = gameElement.find_all("td", "home")[0].text.strip()
                 except:
                     pass
-                if teamA == "Bucks" or teamB == "Bucks":  #!!! don't hardcode team name
-                    result.TheScore = self.__parseGame(gameElement, teamAbbr, teamNick, dateToUse, timeZoneDelta)
+                teamAAbbr = ScoreRetriever.TeamStrToTricode(teamA)
+                teamBAbbr = ScoreRetriever.TeamStrToTricode(teamB)
+                if teamAAbbr == teamAbbr or teamBAbbr == teamAbbr:
+                    result.TeamGameFound = True
+                    result.TheScore = self.__parseGame(gameElement, teamAbbr, dateToUse, timeZoneDelta)
                     break
         
         except Exception as e:
@@ -53,12 +56,19 @@ class ESPNScoreRetriever(ScoreRetriever):
         return result
 
 
-    def __parseGame(self, gameElement: Tag, teamAbbr: str, teamNick: str, dateToUse: date, timeZoneDelta: int) -> Score:
+    def __parseGame(self, gameElement: Tag, teamAbbr: str, dateToUse: date, timeZoneDelta: int) -> Score:
         score: Score = Score()
 
         try:
-            score.AwayTeamAbbr = gameElement.find_all("td", "away")[0].text.strip()
-            score.HomeTeamAbbr = gameElement.find_all("td", "home")[0].text.strip()
+            score.AwayTeamAbbr = ScoreRetriever.TeamStrToTricode(gameElement.find_all("td", "away")[0].text.strip())
+            score.HomeTeamAbbr = ScoreRetriever.TeamStrToTricode(gameElement.find_all("td", "home")[0].text.strip())
+
+            if score.HomeTeamAbbr == teamAbbr:
+                score.TeamAbbr = score.HomeTeamAbbr
+                score.OtherAbbr = score.AwayTeamAbbr
+            else:
+                score.TeamAbbr = score.AwayTeamAbbr
+                score.OtherAbbr = score.HomeTeamAbbr
         except:
             pass
 
@@ -79,7 +89,7 @@ class ESPNScoreRetriever(ScoreRetriever):
             timerRaw: str = gameElement.select(".date-time")[0].text.strip()
 
             if timerRaw == "Final" or timerRaw == "Final/OT":
-                score.SetIsFinal(True, teamNick)
+                score.IsFinal = True
             elif timerRaw == "Halftime":
                 score.Period = "2nd"
                 score.TimeRemaining = "0:00"
@@ -103,7 +113,7 @@ class ESPNScoreRetriever(ScoreRetriever):
     
 if __name__ == '__main__':
     scoreRetriever: ESPNScoreRetriever = ESPNScoreRetriever()
-    scoreResult = scoreRetriever.GetScoreForTeam("MIL", "Bucks", date(2018,11,28), -1)
+    scoreResult = scoreRetriever.GetScoreForTeam("MIL", date(2018,11,28), -1)
     #if scoreResult .Response != None:
     #    textFile = open("ESPN_response.html", "wb")
     #    textFile.write(scoreResult .Response.data)

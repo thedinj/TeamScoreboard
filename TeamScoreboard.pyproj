@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>fe0bd7ab-3d2f-4182-bd75-64614168c400</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>ESPN.py</StartupFile>
+    <StartupFile>TeamScoreboard.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>

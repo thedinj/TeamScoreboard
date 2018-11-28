@@ -3,13 +3,12 @@ import os
 import sys
 import subprocess
 import time
-from USAToday import USATodayScoreRetriever
+from ESPN import ESPNScoreRetriever
 from ScoreRetriever import ScoreRetriever, ScoreResult, Score
 from Scoreboard import Scoreboard
 from datetime import datetime, date, timedelta
 
 FAVORITE_TEAM = "MIL"
-FAVORITE_TEAM_NICKNAME= "Bucks"
 TIME_ZONE_DELTA = -1
 
 ROWS = 16
@@ -53,7 +52,6 @@ class DrawResult(object):
 
 class TeamScoreboard(object):
     __teamAbbr = ""
-    __teamNick = ""
     __timeZoneDelta = 0
     __scoreRetriever = None
     __scoreboard = None
@@ -61,11 +59,10 @@ class TeamScoreboard(object):
     __finalFlag = False
     __finalTimestamp = None
 
-    def __init__(self, teamAbbr: str, teamNick: str, timeZoneDelta: int):
+    def __init__(self, teamAbbr: str, timeZoneDelta: int):
         self.__teamAbbr = teamAbbr
-        self.__teamNick = teamNick
         self.__timeZoneDelta = timeZoneDelta
-        self.__scoreRetriever = USATodayScoreRetriever()
+        self.__scoreRetriever = ESPNScoreRetriever()
         self.__scoreboard = Scoreboard(ROWS, COLS, PADDING)
 
     def RunDisplayScoreLoop(self):
@@ -79,7 +76,7 @@ class TeamScoreboard(object):
             
             result: ScoreResult = self.__getScoreResult()
 
-            if result.RequestSucceeded and SAVING_RESPONSES:
+            if result.RequestSucceeded and result.Response != None and SAVING_RESPONSES:
                 filename = self.__getNextResponseFilename()
                 print("Storing response as {}.".format(filename))
                 textFile = open(self.__getDirectory() + "/" + filename, "wb")
@@ -122,7 +119,7 @@ class TeamScoreboard(object):
         else:
             self.__noGameTodayCount = 0
             
-        if result.TheScore == None:
+        if result.TheScore == None and not result.TeamGameFound:
             print("No team game found for today. Going to sleep.")
             return DrawResult(sleepSeconds = TeamScoreboard.SecondsUntilTomorrow() + 1)
 
@@ -134,7 +131,7 @@ class TeamScoreboard(object):
                 print("Game doesn't start until {}.".format(score.StartTime.strftime("%x %X")))
                 return DrawResult(sleepSeconds = secondsUntilStart + 1)
 
-        if score.GetIsFinal():
+        if score.IsFinal:
             if not self.__finalFlag:
                 self.__finalFlag = True
                 self.__finalTimestamp = datetime.now()
@@ -150,7 +147,7 @@ class TeamScoreboard(object):
             self.__finalFlag = False
             self.__finalTimestamp = None
 
-        if len(score.Period) < 1:
+        if not score.IsFinal and len(score.Period) < 1:
             print("It's after gametime but no score yet.")
             return DrawResult(sleepSeconds = LED_REFRESH_TIME_SEC)
 
@@ -167,10 +164,10 @@ class TeamScoreboard(object):
             dateToUse = SIMULATION_DATE
         if not SIMULATED_DATA:
             print("Retrieving score from the web.")
-            return self.__scoreRetriever.GetScoreForTeam(self.__teamAbbr, self.__teamNick, dateToUse, self.__timeZoneDelta)
+            return self.__scoreRetriever.GetScoreForTeam(self.__teamAbbr, dateToUse, self.__timeZoneDelta)
         else:
             print("Retrieving score from simulation data.")
-            return self.__scoreRetriever.GetSimulatedScoreForTeam(self.__teamAbbr, self.__teamNick, dateToUse, self.__timeZoneDelta)
+            return self.__scoreRetriever.GetSimulatedScoreForTeam(self.__teamAbbr, dateToUse, self.__timeZoneDelta)
 
     def __sleep(self, seconds: int):
         if seconds < 1:
@@ -180,6 +177,14 @@ class TeamScoreboard(object):
         sleepUntil: datetime = datetime.now() + timedelta(0, seconds)
         print("Sleeping {}s (until {}).".format(seconds, sleepUntil.strftime("%x %X")))
         time.sleep(seconds)
+        
+    def __getDirectory(self):
+        return os.path.dirname(os.path.abspath(__file__))
+
+    __currentResponseIndex: int = -1
+    def __getNextResponseFilename(self):
+        self.__currentResponseIndex = (self.__currentResponseIndex + 1) % MAX_SAVED_RESPONSES
+        return "response_" + str(self.__currentResponseIndex+1) + ".html"
 
     @staticmethod
     def SecondsUntilTomorrow():
@@ -196,14 +201,6 @@ class TeamScoreboard(object):
         if timeUntilStart.days < 0:  # this is how you check for a negative timedelta
             return 0
         return timeUntilStart.seconds
-        
-    def __getDirectory(self):
-        return os.path.dirname(os.path.abspath(__file__))
-
-    __currentResponseIndex: int = -1
-    def __getNextResponseFilename(self):
-        self.__currentResponseIndex = (self.__currentResponseIndex + 1) % MAX_SAVED_RESPONSES
-        return "response_" + str(self.__currentResponseIndex+1) + ".html"
 
 
 def signal_handler(sig, frame):
@@ -215,6 +212,6 @@ if __name__ == '__main__':
     
     signal.signal(signal.SIGINT, signal_handler)
 
-    teamScoreboard: TeamScoreboard = TeamScoreboard(FAVORITE_TEAM, FAVORITE_TEAM_NICKNAME, TIME_ZONE_DELTA)
+    teamScoreboard: TeamScoreboard = TeamScoreboard(FAVORITE_TEAM, TIME_ZONE_DELTA)
     teamScoreboard.RunDisplayScoreLoop()
     

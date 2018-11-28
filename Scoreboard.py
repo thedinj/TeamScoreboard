@@ -1,12 +1,12 @@
 import time
 import subprocess
 import os
-from ScoreRetriever import Score
+from ScoreRetriever import Score, ScoreRetriever
 from PIL import Image, ImageFont, ImageDraw
 import shlex
 
-SCORE_FILE_NAME = "score.ppm"  #! used to have path: /home/pi/TeamScoreboard/
-TEMPLATE_FILE_NAME = "scoreboard_bg.ppm"  #! this too: /home/pi/TeamScoreboard/
+SCORE_FILE_NAME = "score.ppm"
+TEMPLATE_FILE_NAME = "scoreboard_bg.ppm"
 
 class Scoreboard(object):
     __fonts = {}
@@ -31,7 +31,7 @@ class Scoreboard(object):
         if len(timer) < 1:
             timer = "0:00"
         
-        if score.GetIsFinal():
+        if score.IsFinal:
             period = "(F)"
             timer = ""
         else:
@@ -61,8 +61,13 @@ class Scoreboard(object):
 
         font = self.__getFontByName("FreeSansBold", self.__rows)
     
-        scoreText = score.FinalMessage
-        color = score.FinalMessageColor
+        teamNick = ScoreRetriever.TricodeToNick(score.TeamAbbr)
+        if score.TeamScore > score.OtherScore:
+            scoreText = teamNick.upper() + " WIN!"
+            color = (0, 255, 0)
+        else:
+            scoreText = teamNick + " lose"
+            color = (255, 0, 0)
     
         scoreText += " ({}-{})".format(score.TeamScore, score.OtherScore)
     

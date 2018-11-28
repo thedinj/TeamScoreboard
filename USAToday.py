@@ -10,7 +10,7 @@ import os
 SCORE_URL = "http://www.usatoday.com/sports/nba/scores/{}/{}/{}/"
 
 class USATodayScoreRetriever(ScoreRetriever):
-    def GetScoreForTeam(self, teamAbbr: str, teamNick: str, dateToUse: date, timeZoneDelta: int) -> ScoreResult:
+    def GetScoreForTeam(self, teamAbbr: str, dateToUse: date, timeZoneDelta: int) -> ScoreResult:
         try:
             result: ScoreResult = ScoreResult()
 
@@ -39,7 +39,8 @@ class USATodayScoreRetriever(ScoreRetriever):
                     teamA = gameElement.select(".teamname")[0].string.strip()
                     teamB = gameElement.select(".teamname")[1].string.strip()
                     if teamA == teamAbbr or teamB == teamAbbr:
-                        result.TheScore = self.__parseGame(gameElement, teamAbbr, teamNick, dateToUse, timeZoneDelta)
+                        result.TeamGameFound = True
+                        result.TheScore = self.__parseGame(gameElement, teamAbbr, dateToUse, timeZoneDelta)
                         break
         
         except Exception as e:
@@ -59,12 +60,19 @@ class USATodayScoreRetriever(ScoreRetriever):
         return gameElements
 
 
-    def __parseGame(self, gameElement: Tag, teamAbbr: str, teamNick: str, dateToUse: date, timeZoneDelta: int) -> Score:
+    def __parseGame(self, gameElement: Tag, teamAbbr: str, dateToUse: date, timeZoneDelta: int) -> Score:
         score: Score = Score()
 
         try:
             score.AwayTeamAbbr = gameElement.select(".teamname")[0].string.strip()
             score.HomeTeamAbbr = gameElement.select(".teamname")[1].string.strip()
+
+            if score.HomeTeamAbbr == teamAbbr:
+                score.TeamAbbr = score.HomeTeamAbbr
+                score.OtherAbbr = score.AwayTeamAbbr
+            else:
+                score.TeamAbbr = score.AwayTeamAbbr
+                score.OtherAbbr = score.HomeTeamAbbr
         except:
             pass
 
@@ -107,7 +115,7 @@ class USATodayScoreRetriever(ScoreRetriever):
             timerElement: Tag = gameElement.find("h3")
             timerRaw = timerElement.string.strip()
             if timerRaw == "Final" or timerRaw == "Final OT":
-                score.SetIsFinal(True, teamNick)
+                score.IsFinal = True
             elif timerRaw == "Halftime":
                 score.TimeRemaining = "0:00"
             else:
